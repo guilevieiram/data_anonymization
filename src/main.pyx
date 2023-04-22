@@ -1,6 +1,16 @@
 import numpy as np
 from sklearn.metrics import accuracy_score
-from collections import defaultdict
+from libc.math cimport exp, sqrt, pow
+
+cdef double sigmoid(x: float):
+    return 1 / (1 + exp(-x))
+
+cdef double distance(double[:] x, double[:] y):
+    assert (len(x) == len(y))
+    cdef double dist = 0
+    for i in range(len(x)):
+        dist += (x[i] - y[i])*(x[i] - y[i])
+    return sqrt(dist)
 
 cdef class Classifier:
     cdef set dictionary
@@ -42,8 +52,53 @@ cdef class Classifier:
         cdef float mean = sum(word_map[word])/len(word_map[word])
         return int(mean >= 0.5)
 
+    cdef void fit_logistic(self):
+        assert("train" in set(self.data.keys()))
+        cdef double[:] theta = np.ones(len(self.vocabulary) + 1) ## theta zero
+        cdef double[:] new_theta = theta[:] ## theta zero
+        cdef double step = 1e-2
+        cdef double num_points = len(self.data["train"])
+        cdef int max_iters =  2000
+        cdef double error = 0
+        cdef int coord = 0
+        cdef double threshold = 0
+
+        for it in range(max_iters):
+            for word, ans in self.data["train"]:
+                coord = self.get_vocabulary_index(word) + 1
+                if coord < 0: continue
+                new_theta[coord] -= step / num_points * (sigmoid(new_theta[coord]) - ans)
+                new_theta[0] -= step / num_points * (sigmoid(new_theta[0]) - ans)
+
+            error = distance(theta, new_theta)
+            theta = new_theta
+
+            if it % 200 == 0:
+                print(f"{(100*it/max_iters):.2f}%")
+
+
+        for word, ans in self.data["train"]:
+            threshold += ans
+        threshold /= num_points
+        threshold = 1 - threshold
+
+        self.models["logistic"] = (theta, threshold)
+        
+
+    cdef int predict_logistic(self, word: str):
+        assert("logistic" in set(self.models.keys()))
+        cdef int coord = self.get_vocabulary_index(word) + 1
+        cdef double pred = 0
+        cdef double[:] theta = self.models["logistic"][0]
+        cdef double threshold = self.models["logistic"][1]
+
+        pred += sigmoid(theta[coord])
+        pred += sigmoid(theta[0])
+
+        return pred >= threshold
+
     # public methods
-    cpdef void read_data(self, path: str, data_tag: str):
+    cpdef read_data(self, path: str, data_tag: str):
         cdef list data = []
         self.data[data_tag] = data
         with open(path, "r") as f:
@@ -71,15 +126,20 @@ cdef class Classifier:
     def get_X(self): return self.X
     def get_y(self): return self.y
 
-    cpdef void fit(self, model: str):
-        assert(model in ["knn"])
+
+    # main API
+    cpdef fit(self, model: str):
+        assert(model in ["knn", "logistic"])
         print(f"Fitting {model}")
 
         if model == "knn":
             self.fit_knn()
+        
+        if model == "logistic":
+            self.fit_logistic()
 
-    cpdef void predict(self, model: str):
-        assert(model in ["knn"])
+    cpdef predict(self, model: str):
+        assert(model in ["knn", "logistic"])
         assert(self.models[model] is not None)
 
         cdef list anss = []
@@ -93,4 +153,13 @@ cdef class Classifier:
                     pred.append(self.predict_knn(word))
                 acc = accuracy_score(anss, pred)
                 print(f"KNN accuracy in {test}: {(100*acc):.2f}%")
+                anss, pred = [], []
+
+        if model == "logistic":
+            for test in ["testa", "testb"]:
+                for word, ans in self.data[test]:
+                    anss.append(ans)
+                    pred.append(self.predict_logistic(word))
+                acc = accuracy_score(anss, pred)
+                print(f"Logistic accuracy in {test}: {(100*acc):.2f}%")
                 anss, pred = [], []

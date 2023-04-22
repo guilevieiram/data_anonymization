@@ -10,7 +10,6 @@ c.initialize_vocabulary()
 c.fit("knn")
 c.predict("knn")
 
-# print(c.get_X())
-# print(c.get_y())
-
+c.fit("logistic")
+c.predict("logistic")
 
