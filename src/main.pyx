@@ -1,6 +1,29 @@
 import numpy as np
 from sklearn.metrics import accuracy_score
 from libc.math cimport exp, sqrt, pow
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
+def evaluate_model(labels, pred_labels):
+    try:
+        cm = confusion_matrix(labels, pred_labels)
+        print(f"Confusion Matrix\n {cm}")
+
+        acc = accuracy_score(labels, pred_labels)
+        print(f"Accuracy: \n\t{acc}")
+
+        recall = recall_score(labels, pred_labels)
+        print(f"Recall: \n\t{recall}")
+
+        precision = precision_score(labels, pred_labels)
+        print(f"Precision: \n\t{precision}")
+
+        f1 = f1_score(labels, pred_labels)
+        print(f"F1 Score: \n\t{f1}")
+
+        roc_auc = roc_auc_score(labels, pred_labels)
+        print(f"ROC AUC Score: \n\t{roc_auc}")
+    except Exception as e:
+        print(f"Error calculating metrics: {e}")
 
 cdef double sigmoid(x: float):
     return 1 / (1 + exp(-x))
@@ -151,8 +174,8 @@ cdef class Classifier:
                 for word, ans in self.data[test]:
                     anss.append(ans)
                     pred.append(self.predict_knn(word))
-                acc = accuracy_score(anss, pred)
-                print(f"KNN accuracy in {test}: {(100*acc):.2f}%")
+                print(f"KNN on {test}: ")
+                evaluate_model(pred, anss)
                 anss, pred = [], []
 
         if model == "logistic":
@@ -160,6 +183,6 @@ cdef class Classifier:
                 for word, ans in self.data[test]:
                     anss.append(ans)
                     pred.append(self.predict_logistic(word))
-                acc = accuracy_score(anss, pred)
-                print(f"Logistic accuracy in {test}: {(100*acc):.2f}%")
+                print(f"Logistic on {test}: ")
+                evaluate_model(pred, anss)
                 anss, pred = [], []
